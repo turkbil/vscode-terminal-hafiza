@@ -1,0 +1,6 @@
+{
+  // Yalnızca bu deponun kendi geliştirme penceresi için — testler 60 saniye
+  // beklemesin diye. Kullanıcı ayarlarını etkilemez.
+  "terminalHafiza.kayitAraligiSaniye": 10,
+  "terminalHafiza.kapanistaSor": false
+}

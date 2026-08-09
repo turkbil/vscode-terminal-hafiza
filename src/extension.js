@@ -76,12 +76,22 @@ async function anlikGoruntu() {
 
     const cwd = (t.shellIntegration && t.shellIntegration.cwd && t.shellIntegration.cwd.fsPath)
       || dizinler.get(pid) || null;
-    kayitlar.push({ ad: t.name, cwd, komut });
+    const kayit = { ad: t.name, cwd, komut };
+    kayitlar.push(kayit);
+    sekmeKaydi.set(t, kayit);
   }
 
   claudeOturumlariniEsle(kayitlar);
   return kayitlar;
 }
+
+/**
+ * Terminal → o sekmede en son ne çalıştığı.
+ *
+ * Sekme kapandığında süreç çoktan ölmüştür; `ps` ile artık okunamaz. Kapanışta
+ * elimizde kalan tek bilgi son taramadan gelen bu kayıttır — bu yüzden tutuluyor.
+ */
+const sekmeKaydi = new Map();
 
 /** Bir önceki taramanın sonucu — kısa ömürlü komutları elemek için. */
 let oncekiTarama = [];
@@ -126,6 +136,48 @@ async function kaydet(context, sessiz = true) {
   } catch (e) {
     gunluk(`kaydetme hatası: ${e && e.message}`);
   }
+}
+
+// MARK: - Kapanan sekmeler
+
+const ANAHTAR_KAPANAN = () => `terminalHafiza.kapananlar::${pencereAnahtari()}`;
+
+/** Kapananlar listesini, süresi geçenleri atarak okur. */
+function kapananlariOku(context) {
+  const saat = ayar('kapananSaklamaSaati', 24);
+  const sinir = Date.now() - saat * 60 * 60 * 1000;
+  return (context.globalState.get(ANAHTAR_KAPANAN(), []) || []).filter((k) => k.kapanma > sinir);
+}
+
+/**
+ * Sekme kapanınca ANINDA devreye girer — 60 saniyelik taramayı beklemez.
+ *
+ * Yanlışlıkla kapatılan bir Claude sekmesi, bir sonraki taramaya kadar
+ * beklenirse kayıttan da düşer ve konuşma tamamen kaybolur. Kapanış olayında
+ * son bilinen kaydı ayrı bir listeye alıp hemen diske yazıyoruz.
+ */
+async function sekmeKapandi(context, terminal) {
+  const kayit = sekmeKaydi.get(terminal);
+  sekmeKaydi.delete(terminal);
+  entegrasyonKomutu.delete(terminal);
+  if (!kayit) return;   // içinde kayda değer bir şey çalışmıyordu
+
+  const liste = kapananlariOku(context);
+  liste.unshift({ ...kayit, kapanma: Date.now() });
+  await context.globalState.update(ANAHTAR_KAPANAN(), liste.slice(0, 50));
+  gunluk(`sekme kapandı, saklandı: ${kayit.komut.slice(0, 50)}`);
+
+  if (!ayar('kapanistaSor', true)) return;
+  const komut = komutuDonustur(kayit.komut, kayit);
+  const kisa = claudeMi(kayit.komut) ? 'Claude oturumu' : kayit.komut.slice(0, 32);
+  const secim = await vscode.window.showWarningMessage(
+    `Kapanan sekmede ${kisa} çalışıyordu.`, 'Geri aç', 'Boş ver'
+  );
+  if (secim !== 'Geri aç') return;
+  const yeni = vscode.window.createTerminal({ name: kayit.ad, cwd: kayit.cwd || undefined });
+  yeni.show(true);
+  setTimeout(() => yeni.sendText(komut, true), 1200);
+  gunluk(`kapanan sekme geri açıldı: ${komut}`);
 }
 
 // MARK: - Geri yükleme
@@ -297,6 +349,41 @@ async function uctanUcaTest(context) {
   not('bitti');
 }
 
+
+// Kapanma testi (yalnızca geliştirme) — sekme kapanınca kayıt anında alınıyor mu?
+async function kapanmaTesti(context) {
+  const fs = require('fs');
+  const path = require('path');
+  const D = path.join(context.extensionPath, 'build', 'kapanma');
+  fs.mkdirSync(D, { recursive: true });
+  const RAPOR = path.join(D, 'rapor.txt');
+  const besleme = path.join(D, 'besleme.txt');
+  fs.writeFileSync(besleme, 'x\n');
+  fs.writeFileSync(RAPOR, '');
+  const not = (s) => fs.appendFileSync(RAPOR, `${new Date().toISOString().slice(11, 19)}  ${s}\n`);
+  const bekle = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  not('terminal açılıyor');
+  const t = vscode.window.createTerminal({ name: 'kapanis-testi' });
+  t.show(false);
+  await bekle(1500);
+  t.sendText(`tail -f '${besleme}'`, true);
+
+  await bekle(26000);   // 10 sn aralıkla iki tarama geçsin
+  not(`kapatmadan önce kayıt: ${context.globalState.get(ANAHTAR, []).length} komut`);
+  not(`kapatmadan önce kapananlar: ${kapananlariOku(context).length}`);
+
+  not('sekme kapatılıyor');
+  t.dispose();
+  await bekle(3000);
+
+  const kapananlar = kapananlariOku(context);
+  not(`kapanış SONRASI kapananlar: ${kapananlar.length}`);
+  kapananlar.slice(0, 3).forEach((k) => not(`   "${k.ad}" → ${k.komut}`));
+  not(`SONUÇ: ${kapananlar.some((k) => k.ad === 'kapanis-testi') ? 'KAPANAN SEKME ANINDA YAKALANDI' : 'yakalanmadı'}`);
+  not('bitti');
+}
+
 // MARK: - Etkinleşme
 
 function activate(context) {
@@ -304,6 +391,9 @@ function activate(context) {
   ANAHTAR_ZAMAN = `terminalHafiza.kayitZamani::${pencereAnahtari()}`;
   gunluk(`Terminal Hafızası etkin — pencere: ${pencereAnahtari()}`);
 
+  if (process.env.TERMINAL_HAFIZA_KAPANMA === '1') {
+    setTimeout(() => kapanmaTesti(context).catch((e) => gunluk(`kapanma testi HATA: ${e && e.stack}`)), 2000);
+  }
   if (process.env.TERMINAL_HAFIZA_E2E === '1') {
     setTimeout(() => uctanUcaTest(context).catch((e) => gunluk(`e2e HATA: ${e && e.stack}`)), 2500);
   }
@@ -320,7 +410,8 @@ function activate(context) {
     );
   }
   context.subscriptions.push(
-    vscode.window.onDidCloseTerminal((t) => entegrasyonKomutu.delete(t))
+    vscode.window.onDidCloseTerminal((t) =>
+      sekmeKapandi(context, t).catch((e) => gunluk(`kapanış hatası: ${e && e.message}`)))
   );
 
   const aralik = Math.max(10, ayar('kayitAraligiSaniye', 60)) * 1000;
@@ -346,7 +437,24 @@ function activate(context) {
         { title: `Son kayıt: ${new Date(zaman).toLocaleString('tr-TR')}` }
       );
     }),
-    vscode.commands.registerCommand('terminalHafiza.gunlukGoster', () => cikis && cikis.show())
+    vscode.commands.registerCommand('terminalHafiza.gunlukGoster', () => cikis && cikis.show()),
+    vscode.commands.registerCommand('terminalHafiza.kapananiGeriAc', async () => {
+      const liste = kapananlariOku(context);
+      if (!liste.length) { vscode.window.showInformationMessage('Son 24 saatte kapanmış kayıtlı sekme yok.'); return; }
+      const secim = await vscode.window.showQuickPick(
+        liste.map((k) => ({
+          label: claudeMi(k.komut) ? `$(comment-discussion) Claude — ${(k.cwd || '').split('/').pop()}` : k.komut.slice(0, 60),
+          description: new Date(k.kapanma).toLocaleTimeString('tr-TR'),
+          detail: k.cwd || '',
+          kayit: k
+        })),
+        { title: 'Kapanmış sekmelerden hangisini geri açayım?' }
+      );
+      if (!secim) return;
+      const t = vscode.window.createTerminal({ name: secim.kayit.ad, cwd: secim.kayit.cwd || undefined });
+      t.show(true);
+      setTimeout(() => t.sendText(komutuDonustur(secim.kayit.komut, secim.kayit), true), 1200);
+    })
   );
 
   // Terminallerin canlanması için biraz bekle, sonra sor.

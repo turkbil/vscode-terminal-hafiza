@@ -2,7 +2,7 @@
   "name": "terminal-hafiza",
   "displayName": "Terminal Hafızası",
   "description": "VS Code kapanıp açılınca terminallerde ne çalışıyorduysa geri getirir.",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "publisher": "turkbil",
   "license": "MIT",
   "icon": "media/simge.png",
@@ -44,6 +44,10 @@
       {
         "command": "terminalHafiza.gunlukGoster",
         "title": "Terminal Hafızası: Günlüğü göster"
+      },
+      {
+        "command": "terminalHafiza.kapananiGeriAc",
+        "title": "Terminal Hafızası: Kapanan sekmeyi geri aç"
       }
     ],
     "configuration": {
@@ -81,6 +85,16 @@
             "type": "string"
           },
           "description": "Bu düzenli ifadelere uyan komutlar hiç kaydedilmez — yanlışlıkla geri çalıştırılmasınlar."
+        },
+        "terminalHafiza.kapanistaSor": {
+          "type": "boolean",
+          "default": true,
+          "description": "Bir terminal sekmesi kapandığında, içinde uzun süreli bir iş çalışıyorsa hemen 'geri açayım mı?' diye sorulsun mu?"
+        },
+        "terminalHafiza.kapananSaklamaSaati": {
+          "type": "number",
+          "default": 24,
+          "description": "Kapanmış sekmeler kaç saat hatırlansın? 'Kapanan sekmeyi geri aç' komutu bu süre içindekileri listeler."
         }
       }
     }

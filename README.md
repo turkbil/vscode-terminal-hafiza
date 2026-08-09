@@ -65,6 +65,8 @@ Komut paletinden: `Terminal Hafızası: Kayıtları göster`, `… Şimdi kaydet
 |---|---|---|
 | `terminalHafiza.kayitAraligiSaniye` | `60` | Tarama sıklığı. Aynı zamanda eşik: bir komut kaydedilmek için iki taramayı da görmeli, yani ≥1 dk çalışmalı |
 | `terminalHafiza.acilisGecikmesiMs` | `4000` | Açılışta sormadan önce beklenecek süre |
+| `terminalHafiza.kapanistaSor` | `true` | Sekme kapanınca hemen "geri açayım mı?" diye sorulsun mu |
+| `terminalHafiza.kapananSaklamaSaati` | `24` | Kapanmış sekmeler kaç saat hatırlansın |
 | `terminalHafiza.haricTutulanlar` | `["^rm\\b", "^git push", "^sudo\\b"]` | Bu kalıplara uyan komutlar hiç kaydedilmez |
 | `terminalHafiza.komutDonusumleri` | `{}` | Geri yüklerken değiştirilecek komutlar |
 
@@ -94,6 +96,24 @@ code --install-extension terminal-hafiza-*.vsix
 
 Derleme gerektirmez — saf JavaScript, bağımlılık yok. macOS için yazıldı (`ps`, `lsof` ve
 `~/.claude/projects` düzenine dayanır).
+
+## Sekme kapanınca ne oluyor?
+
+Bir terminal sekmesi kapandığında eklenti **anında** devreye girer — 60 saniyelik taramayı
+beklemez (ölçüldü: kapanıştan 3 sn sonra kayıt alınmış olur).
+
+İçinde uzun süreli bir iş çalışıyorduysa hemen sorar:
+
+```
+Kapanan sekmede Claude oturumu çalışıyordu.     [Geri aç]  [Boş ver]
+```
+
+**Geri aç** derseniz aynı klasörde yeni bir sekme açılır ve `claude --resume <kimlik>` ile
+tam o konuşma geri gelir.
+
+Sormasını istemezseniz `terminalHafiza.kapanistaSor` ayarını kapatın; kayıt yine tutulur.
+Sonradan geri açmak için: `⌘⇧P` → **Terminal Hafızası: Kapanan sekmeyi geri aç** — son 24
+saatte kapanmış sekmeleri listeler.
 
 ## Birden fazla VS Code penceresi
 
