@@ -89,10 +89,6 @@ code --install-extension terminal-hafiza-*.vsix
 Derleme gerektirmez — saf JavaScript, bağımlılık yok. macOS için yazıldı (`ps`, `lsof` ve
 `~/.claude/projects` düzenine dayanır).
 
-## Lisans
-
-MIT
-
 ## Birden fazla VS Code penceresi
 
 Kayıtlar **pencere başına** tutulur. Anahtar, o pencerede açık olan klasörden türetilir
@@ -103,3 +99,7 @@ aynı yere yazar, son yazan diğer pencerelerin terminallerini silerdi.
 
 ⌘Q ile çıktığınızda bütün pencereler kapanır ve bütün kabuklar ölür. Yeniden açılışta VS Code
 pencereleri geri getirir; **her pencere kendi terminallerini ayrı ayrı sorar**.
+
+## Lisans
+
+MIT
