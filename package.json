@@ -1,0 +1,88 @@
+{
+  "name": "terminal-hafiza",
+  "displayName": "Terminal Hafızası",
+  "description": "VS Code kapanıp açılınca terminallerde ne çalışıyorduysa geri getirir.",
+  "version": "0.1.0",
+  "publisher": "turkbil",
+  "license": "MIT",
+  "icon": "media/simge.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/turkbil/vscode-terminal-hafiza.git"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "terminal",
+    "oturum",
+    "session",
+    "restore",
+    "kalıcılık"
+  ],
+  "main": "./src/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "terminalHafiza.geriYukle",
+        "title": "Terminal Hafızası: Komutları geri yükle"
+      },
+      {
+        "command": "terminalHafiza.kaydet",
+        "title": "Terminal Hafızası: Şimdi kaydet"
+      },
+      {
+        "command": "terminalHafiza.kayitlariGoster",
+        "title": "Terminal Hafızası: Kayıtları göster"
+      },
+      {
+        "command": "terminalHafiza.gunlukGoster",
+        "title": "Terminal Hafızası: Günlüğü göster"
+      }
+    ],
+    "configuration": {
+      "title": "Terminal Hafızası",
+      "properties": {
+        "terminalHafiza.kayitAraligiSaniye": {
+          "type": "number",
+          "default": 5,
+          "minimum": 2,
+          "description": "Terminallerde çalışan komutların kaç saniyede bir taranacağı."
+        },
+        "terminalHafiza.acilisGecikmesiMs": {
+          "type": "number",
+          "default": 4000,
+          "description": "Açılışta sormadan önce beklenecek süre. VS Code terminalleri canlandırana kadar beklemek gerekir."
+        },
+        "terminalHafiza.komutDonusumleri": {
+          "type": "object",
+          "default": {
+            "claude": "claude --continue"
+          },
+          "description": "Geri yüklerken değiştirilecek komutlar. Devam ettirilebilen araçlarda yeni oturum yerine eskisini sürdürmek için.",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "terminalHafiza.haricTutulanlar": {
+          "type": "array",
+          "default": [
+            "^rm\\b",
+            "^git push",
+            "^sudo\\b"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "description": "Bu düzenli ifadelere uyan komutlar hiç kaydedilmez — yanlışlıkla geri çalıştırılmasınlar."
+        }
+      }
+    }
+  }
+}
