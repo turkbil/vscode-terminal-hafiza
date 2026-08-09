@@ -16,8 +16,24 @@ const {
   claudeMi, komuttakiOturumKimligi, claudeOturumKimlikleri, claudeOturumlariniEsle
 } = require('./surec');
 
-const ANAHTAR = 'terminalHafiza.kayitlar';
-const ANAHTAR_ZAMAN = 'terminalHafiza.kayitZamani';
+/**
+ * Kayıt anahtarı PENCEREYE ÖZEL olmak zorunda.
+ *
+ * `globalState` bütün pencerelerde ortaktır: aynı anda beş VS Code penceresi
+ * açıksa beşi de aynı anahtara yazar ve son yazan diğerlerinin terminallerini
+ * siler. Anahtarı açık klasöre bağlayarak her pencere kendi kaydını tutar;
+ * yeniden açılışta da doğru pencereye doğru terminaller döner.
+ */
+function pencereAnahtari() {
+  const kok = vscode.workspace.workspaceFile
+    ? vscode.workspace.workspaceFile.fsPath
+    : (vscode.workspace.workspaceFolders || []).map((f) => f.uri.fsPath).sort().join('|');
+  return kok || 'bos-pencere';
+}
+
+// Etkinleşmede pencereye özel hâline getirilir; API hazır olmadan okumayalım.
+let ANAHTAR = 'terminalHafiza.kayitlar';
+let ANAHTAR_ZAMAN = 'terminalHafiza.kayitZamani';
 
 let zamanlayici = null;
 let cikis = null;
@@ -271,7 +287,9 @@ async function uctanUcaTest(context) {
 // MARK: - Etkinleşme
 
 function activate(context) {
-  gunluk('Terminal Hafızası etkin');
+  ANAHTAR = `terminalHafiza.kayitlar::${pencereAnahtari()}`;
+  ANAHTAR_ZAMAN = `terminalHafiza.kayitZamani::${pencereAnahtari()}`;
+  gunluk(`Terminal Hafızası etkin — pencere: ${pencereAnahtari()}`);
 
   if (process.env.TERMINAL_HAFIZA_E2E === '1') {
     setTimeout(() => uctanUcaTest(context).catch((e) => gunluk(`e2e HATA: ${e && e.stack}`)), 2500);

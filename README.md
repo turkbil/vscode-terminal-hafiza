@@ -92,3 +92,14 @@ Derleme gerektirmez — saf JavaScript, bağımlılık yok. macOS için yazıld�
 ## Lisans
 
 MIT
+
+## Birden fazla VS Code penceresi
+
+Kayıtlar **pencere başına** tutulur. Anahtar, o pencerede açık olan klasörden türetilir
+(`terminalHafiza.kayitlar::<klasör>`).
+
+Bu önemliydi: `globalState` bütün pencerelerde ortaktır — anahtar ayrılmasaydı beş pencere
+aynı yere yazar, son yazan diğer pencerelerin terminallerini silerdi.
+
+⌘Q ile çıktığınızda bütün pencereler kapanır ve bütün kabuklar ölür. Yeniden açılışta VS Code
+pencereleri geri getirir; **her pencere kendi terminallerini ayrı ayrı sorar**.
