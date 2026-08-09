@@ -63,7 +63,7 @@ Komut paletinden: `Terminal Hafızası: Kayıtları göster`, `… Şimdi kaydet
 
 | Ayar | Varsayılan | Açıklama |
 |---|---|---|
-| `terminalHafiza.kayitAraligiSaniye` | `5` | Terminallerin kaç saniyede bir taranacağı |
+| `terminalHafiza.kayitAraligiSaniye` | `60` | Tarama sıklığı. Aynı zamanda eşik: bir komut kaydedilmek için iki taramayı da görmeli, yani ≥1 dk çalışmalı |
 | `terminalHafiza.acilisGecikmesiMs` | `4000` | Açılışta sormadan önce beklenecek süre |
 | `terminalHafiza.haricTutulanlar` | `["^rm\\b", "^git push", "^sudo\\b"]` | Bu kalıplara uyan komutlar hiç kaydedilmez |
 | `terminalHafiza.komutDonusumleri` | `{}` | Geri yüklerken değiştirilecek komutlar |
@@ -74,8 +74,14 @@ Komut, terminalin kabuk sürecinin **doğrudan çocuğundan** okunur (`zsh → c
 `zsh → npm run dev`). Kabuk entegrasyonu varsa komutun tam metni oradan alınır.
 
 Anlık komutların (`ls`, `grep`, `head`) yanlışlıkla kaydedilmemesi için kara liste yerine
-şu kural var: bir komut ancak **iki ardışık taramada da** görülürse kaydedilir. Kısa ömürlü
-komutlar bunu yaşayamaz, `claude` ve `npm run dev` yaşar.
+şu kural var: bir komut ancak **iki ardışık taramada da** görülürse kaydedilir.
+
+Bu, aynı zamanda "neyi hatırlamaya değer" eşiğidir. Varsayılan aralık 60 saniye olduğundan
+yalnızca **bir dakikadan uzun süren** işler kaydedilir — Claude oturumları, `npm run dev`,
+izleyiciler. Bir dakikada biten işi hatırlamanın değeri yok.
+
+Kayıt yalnızca tablo **değiştiğinde** diske yazılır; aynı tablo tekrar tekrar yazılmaz,
+günlük de boşuna dolmaz.
 
 ## Kurulum
 

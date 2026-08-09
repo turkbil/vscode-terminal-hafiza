@@ -79,7 +79,7 @@ async function anlikGoruntu() {
     kayitlar.push({ ad: t.name, cwd, komut });
   }
 
-  claudeOturumlariniEsle(kayitlar, gunluk);
+  claudeOturumlariniEsle(kayitlar);
   return kayitlar;
 }
 
@@ -89,14 +89,20 @@ let oncekiTarama = [];
 /**
  * Yalnızca İKİ ARDIŞIK taramada da görülen komutlar kaydedilir.
  *
- * Kara liste tutmak yerine bu kural kullanılıyor: `head`, `grep`, `ls` gibi anlık
- * komutlar iki tarama arasını (varsayılan 5 sn) yaşayamaz; `claude`, `npm run dev`,
- * `tail -f` gibi asıl kaydetmek istediklerimiz yaşar. Ölçümde tam da bu gerekti —
- * tarama sırasında çalışan `head -60` yanlışlıkla kaydediliyordu.
+ * Kara liste tutmak yerine bu kural kullanılıyor: anlık komutlar iki tarama arasını
+ * yaşayamaz, uzun süren işler yaşar. Ölçümde tam da bu gerekti — tarama sırasında
+ * çalışan `head -60` yanlışlıkla kaydediliyordu.
+ *
+ * Bu kural aynı zamanda eşiği belirler: aralık 60 sn ise yalnızca bir dakikadan uzun
+ * süren işler (claude oturumları, `npm run dev`, izleyiciler) kaydedilir. Kısa işleri
+ * hatırlamanın zaten değeri yok.
  */
 function onaylananlar(mevcut) {
   return mevcut.filter((k) => oncekiTarama.some((o) => o.ad === k.ad && o.komut === k.komut));
 }
+
+/** En son diske yazılan kaydın imzası — değişmediyse ne yazarız ne günlüğe basarız. */
+let sonImza = '';
 
 async function kaydet(context, sessiz = true) {
   try {
@@ -107,6 +113,13 @@ async function kaydet(context, sessiz = true) {
     // Kapanış sırasında terminaller teker teker yok olur; boş bir anlık görüntüyü
     // yazarsak son iyi durumu kaybederiz. Bu yüzden boş sonuç kaydı EZMEZ.
     if (!kayitlar.length) { if (!sessiz) gunluk('kaydedilecek kalıcı komut yok'); return; }
+
+    // Tarama sürekli döner ama tablo çoğu zaman aynıdır. Her turda yazmak hem
+    // diski hem günlüğü boş yere doldurur; yalnızca DEĞİŞİNCE yazıyoruz.
+    const imza = JSON.stringify(kayitlar);
+    if (imza === sonImza) { if (!sessiz) gunluk(`değişiklik yok — ${kayitlar.length} komut kayıtlı`); return; }
+    sonImza = imza;
+
     await context.globalState.update(ANAHTAR, kayitlar);
     await context.globalState.update(ANAHTAR_ZAMAN, Date.now());
     gunluk(`kaydedildi: ${kayitlar.length} komut — ${kayitlar.map((k) => k.komut.slice(0, 30)).join(' | ')}`);
@@ -310,7 +323,7 @@ function activate(context) {
     vscode.window.onDidCloseTerminal((t) => entegrasyonKomutu.delete(t))
   );
 
-  const aralik = Math.max(2, ayar('kayitAraligiSaniye', 5)) * 1000;
+  const aralik = Math.max(10, ayar('kayitAraligiSaniye', 60)) * 1000;
   zamanlayici = setInterval(() => kaydet(context), aralik);
   context.subscriptions.push({ dispose: () => clearInterval(zamanlayici) });
 
