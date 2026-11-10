@@ -12,8 +12,9 @@
 
 const vscode = require('vscode');
 const {
-  surecAgaci, onPlanKomutu, calismaDizinleri,
-  claudeMi, komuttakiOturumKimligi, claudeOturumKimlikleri, claudeOturumlariniEsle
+  surecAgaci, onPlanSureci, calismaDizinleri,
+  claudeSurecOturumu, baslikNormal, otomatikBaslikMi,
+  claudeMi, komuttakiOturumKimligi, claudeOturumlariniEsle
 } = require('./surec');
 
 /**
@@ -70,19 +71,39 @@ async function anlikGoruntu() {
     if (!pid) continue;
 
     // Kabuk entegrasyonu varsa komutun tam metni oradan gelir; yoksa süreç ağacından.
-    const komut = entegrasyonKomutu.get(t) || onPlanKomutu(agac, pid);
-    if (!komut) continue;
+    // Kabukta ön planda süreç yoksa, entegrasyonun hatırladığı eski komut sayılmaz.
+    const surec = onPlanSureci(agac, pid);
+    if (!surec) continue;
+    const komut = entegrasyonKomutu.get(t) || surec.komut;
     if (hariç.some((r) => r.test(komut))) { gunluk(`atlandı (hariç): ${komut}`); continue; }
 
     const cwd = (t.shellIntegration && t.shellIntegration.cwd && t.shellIntegration.cwd.fsPath)
       || dizinler.get(pid) || null;
-    const kayit = { ad: t.name, cwd, komut };
+    const kayit = { ad: t.name, adOtomatik: otomatikBaslikMi(t.name), cwd, komut };
+
+    // Claude ise oturumu süreçten KESİN oku.
+    const oturum = claudeSurecOturumu(agac, pid);
+    if (oturum) {
+      kayit.claudeOturum = oturum.kimlik;
+      if (oturum.ad) kayit.claudeAd = oturum.ad;
+      if (!claudeMi(kayit.komut)) kayit.komut = 'claude';
+    }
+
+    // Sekme nesnesi kayda gizli alan olarak bağlanır: JSON'a girmez, ama iki
+    // tarama arasında «aynı sekme mi» sorusunu adla değil kimlikle cevaplar.
+    Object.defineProperty(kayit, 'sekme', { value: t, enumerable: false });
     kayitlar.push(kayit);
     sekmeKaydi.set(t, kayit);
   }
 
   claudeOturumlariniEsle(kayitlar);
   return kayitlar;
+}
+
+/** İki kayıt aynı işi mi gösteriyor? Claude'da oturum, ötekilerde komut. */
+function ayniIs(a, b) {
+  if (a.claudeOturum || b.claudeOturum) return a.claudeOturum === b.claudeOturum;
+  return a.komut === b.komut;
 }
 
 /**
@@ -107,17 +128,32 @@ let oncekiTarama = [];
  * süren işler (claude oturumları, `npm run dev`, izleyiciler) kaydedilir. Kısa işleri
  * hatırlamanın zaten değeri yok.
  */
-function onaylananlar(mevcut) {
-  return mevcut.filter((k) => oncekiTarama.some((o) => o.ad === k.ad && o.komut === k.komut));
+/**
+ * Eşleme ADLA değil SEKMEYLE yapılır: Claude'un canlı başlığı her taramada
+ * değişir (✳ → ◐ → ◑); adla eşlenince tam da ÇALIŞAN oturumlar kayda girmiyordu.
+ *
+ * Silme de iki tarama ister: kayıtlı bir iş bu taramada yok ama bir önceki
+ * taramada vardıysa ve sekmesi hâlâ açıksa bir tur daha tutulur. Kapanış anında
+ * süreçler teker teker ölürken yarım bir görüntü son iyi kaydı ezmesin diye.
+ */
+function onaylananlar(mevcut, acikSekmeler) {
+  const onayli = mevcut.filter((k) => oncekiTarama.some((o) => o.sekme === k.sekme && ayniIs(o, k)));
+  const tutulan = sonKaydedilen.filter((s) =>
+    acikSekmeler.has(s.sekme)
+    && !onayli.some((k) => k.sekme === s.sekme)
+    && oncekiTarama.some((o) => o.sekme === s.sekme && ayniIs(o, s)));
+  return [...onayli, ...tutulan];
 }
 
 /** En son diske yazılan kaydın imzası — değişmediyse ne yazarız ne günlüğe basarız. */
 let sonImza = '';
+/** En son diske yazılan kayıtlar (sekme bağıyla, yalnız bellekte). */
+let sonKaydedilen = [];
 
 async function kaydet(context, sessiz = true) {
   try {
     const mevcut = await anlikGoruntu();
-    const kayitlar = onaylananlar(mevcut);
+    const kayitlar = onaylananlar(mevcut, new Set(vscode.window.terminals));
     oncekiTarama = mevcut;
 
     // Kapanış sırasında terminaller teker teker yok olur; boş bir anlık görüntüyü
@@ -129,6 +165,7 @@ async function kaydet(context, sessiz = true) {
     const imza = JSON.stringify(kayitlar);
     if (imza === sonImza) { if (!sessiz) gunluk(`değişiklik yok — ${kayitlar.length} komut kayıtlı`); return; }
     sonImza = imza;
+    sonKaydedilen = kayitlar;
 
     await context.globalState.update(ANAHTAR, kayitlar);
     await context.globalState.update(ANAHTAR_ZAMAN, Date.now());
@@ -174,7 +211,7 @@ async function sekmeKapandi(context, terminal) {
     `Kapanan sekmede ${kisa} çalışıyordu.`, 'Geri aç', 'Boş ver'
   );
   if (secim !== 'Geri aç') return;
-  const yeni = vscode.window.createTerminal({ name: kayit.ad, cwd: kayit.cwd || undefined });
+  const yeni = sekmeAc(kayit);
   yeni.show(true);
   setTimeout(() => yeni.sendText(komut, true), 1200);
   gunluk(`kapanan sekme geri açıldı: ${komut}`);
@@ -182,14 +219,51 @@ async function sekmeKapandi(context, terminal) {
 
 // MARK: - Geri yükleme
 
-/** Kaydı canlı terminalle eşler: önce ad+dizin, olmazsa yalnız ad. */
-function eslestir(kayit, terminaller, kullanilan) {
-  const uygun = (t) => !kullanilan.has(t);
-  let bulunan = terminaller.find((t) => uygun(t) && t.name === kayit.ad
-    && (!kayit.cwd || !t.shellIntegration || !t.shellIntegration.cwd
-        || t.shellIntegration.cwd.fsPath === kayit.cwd));
-  if (!bulunan) bulunan = terminaller.find((t) => uygun(t) && t.name === kayit.ad);
-  return bulunan || null;
+/** Kayıttan yeni sekme açar. Elle verilmiş ad aynen konur; kendiliğinden başlık konmaz. */
+function sekmeAc(kayit) {
+  const otomatik = kayit.adOtomatik !== undefined ? kayit.adOtomatik : otomatikBaslikMi(kayit.ad);
+  const ad = !otomatik ? kayit.ad : (kayit.claudeAd || undefined);
+  return vscode.window.createTerminal({ name: ad, cwd: kayit.cwd || undefined });
+}
+
+/**
+ * VS Code'un kendi canlandırdığı sekmeleri bulur — bölünmüş (iç içe) düzen ve
+ * sıra yalnız onlarda korunur; yeni sekme açmak düzeni düzleştirir.
+ *
+ * Yalnız içinde süreç ÇALIŞMAYAN (boş kabuk) sekmeler aday sayılır.
+ * 1. tur: başlık birebir ya da durum simgesi atılınca aynı (+ dizin uyumu).
+ * 2. tur: kendiliğinden başlıklı Claude kaydı, aynı dizindeki kendiliğinden
+ *    başlıklı boş sekmeye — Claude'un başlığı kapanışla açılış arasında değişebilir.
+ */
+function eslestir(kayitlar, terminaller, bosMu, cwdSi) {
+  const esler = new Map();
+  const kullanilan = new Set();
+  const dizinUyar = (k, t) => !k.cwd || !cwdSi(t) || cwdSi(t) === k.cwd;
+  const adaylar = terminaller.filter(bosMu);
+
+  for (const k of kayitlar) {
+    const t = adaylar.find((x) => !kullanilan.has(x) && dizinUyar(k, x)
+      && (x.name === k.ad || (baslikNormal(x.name) && baslikNormal(x.name) === baslikNormal(k.ad))));
+    if (t) { esler.set(k, t); kullanilan.add(t); }
+  }
+  for (const k of kayitlar) {
+    if (esler.has(k) || !claudeMi(k.komut)) continue;
+    if (!(k.adOtomatik !== undefined ? k.adOtomatik : otomatikBaslikMi(k.ad))) continue;
+    const t = adaylar.find((x) => !kullanilan.has(x) && k.cwd && cwdSi(x) === k.cwd && otomatikBaslikMi(x.name));
+    if (t) { esler.set(k, t); kullanilan.add(t); }
+  }
+  return esler;
+}
+
+/** Aynı Claude oturumu iki sekmede açılmasın — iki süreç tek konuşmaya yazarsa konuşma bozulur. */
+function tekillestir(kayitlar) {
+  const gorulen = new Set();
+  return kayitlar.filter((k) => {
+    if (!k.claudeOturum) return true;
+    if (gorulen.has(k.claudeOturum)) { gunluk(`yinelenen oturum atlandı: ${k.claudeOturum}`); return false; }
+    gorulen.add(k.claudeOturum);
+    return true;
+  });
 }
 
 /** Kaydı, geri yüklenecek gerçek komuta çevirir. */
@@ -207,18 +281,25 @@ function komutuDonustur(komut, kayit) {
 }
 
 async function geriYukle(context, kayitlar, calistirilsinMi) {
+  kayitlar = tekillestir(kayitlar);
   const terminaller = [...vscode.window.terminals];
-  const kullanilan = new Set();
+  const agac = await surecAgaci();
+  const pidler = new Map();
+  for (const t of terminaller) pidler.set(t, await t.processId);
+  const dizinler = await calismaDizinleri([...pidler.values()].filter(Boolean));
+  const bosMu = (t) => pidler.get(t) && !onPlanSureci(agac, pidler.get(t));
+  const cwdSi = (t) => (t.shellIntegration && t.shellIntegration.cwd && t.shellIntegration.cwd.fsPath)
+    || dizinler.get(pidler.get(t)) || null;
+  const esler = eslestir(kayitlar, terminaller, bosMu, cwdSi);
   let sayac = 0;
 
   for (const kayit of kayitlar) {
-    const hedef = eslestir(kayit, terminaller, kullanilan);
-    const terminal = hedef || vscode.window.createTerminal({ name: kayit.ad, cwd: kayit.cwd || undefined });
-    kullanilan.add(terminal);
+    const hedef = esler.get(kayit);
+    const terminal = hedef || sekmeAc(kayit);
     const komut = komutuDonustur(kayit.komut, kayit);
     terminal.sendText(komut, calistirilsinMi);
     sayac++;
-    gunluk(`geri yüklendi${calistirilsinMi ? ' (çalıştırıldı)' : ' (yazıldı, ENTER bekliyor)'}: ${komut}`);
+    gunluk(`geri yüklendi${hedef ? ' (yerinde)' : ' (yeni sekme)'}${calistirilsinMi ? '' : ' (ENTER bekliyor)'}: ${komut}`);
   }
   return sayac;
 }
@@ -228,9 +309,10 @@ async function acilistaSor(context) {
   if (!kayitlar.length) { gunluk('kayıt yok'); return; }
 
   // Yenilemede süreçler yaşar; hâlâ çalışıyorlarsa sormaya gerek yok.
+  // Claude'da oturum kimliği, ötekilerde komut karşılaştırılır — tek bir düz
+  // `claude` çalışıyor diye bütün `claude` kayıtları «açık» sayılmasın.
   const mevcut = await anlikGoruntu();
-  const halaCalisan = new Set(mevcut.map((k) => k.komut));
-  const eksik = kayitlar.filter((k) => !halaCalisan.has(k.komut));
+  const eksik = tekillestir(kayitlar.filter((k) => !mevcut.some((m) => ayniIs(m, k))));
   if (!eksik.length) { gunluk('kayıtlı komutlar zaten çalışıyor, sorulmadı'); return; }
 
   // Bildirim butonları dar: VS Code uzun etiketleri "Hepsini çalı…" diye kesiyor
@@ -451,17 +533,32 @@ function activate(context) {
         { title: 'Kapanmış sekmelerden hangisini geri açayım?' }
       );
       if (!secim) return;
-      const t = vscode.window.createTerminal({ name: secim.kayit.ad, cwd: secim.kayit.cwd || undefined });
+      const t = sekmeAc(secim.kayit);
       t.show(true);
       setTimeout(() => t.sendText(komutuDonustur(secim.kayit.komut, secim.kayit), true), 1200);
     })
   );
 
-  // Terminallerin canlanması için biraz bekle, sonra sor.
-  setTimeout(() => acilistaSor(context).catch((e) => gunluk(`açılış hatası: ${e && e.message}`)),
+  // Terminallerin canlanması için bekle: önce en az gecikme kadar, sonra sekme
+  // sayısı 2 sn boyunca değişmeyene dek (en çok 20 sn). Canlanma bitmeden eşleme
+  // yapılırsa geç gelen sekmeler bulunamaz, yerlerine fazladan düz sekme açılırdı.
+  setTimeout(() => sekmelerOturunca()
+    .then(() => acilistaSor(context))
+    .catch((e) => gunluk(`açılış hatası: ${e && e.message}`)),
     Math.max(1000, ayar('acilisGecikmesiMs', 4000)));
+}
+
+async function sekmelerOturunca() {
+  const bekle = (ms) => new Promise((r) => setTimeout(r, ms));
+  let son = -1, sabit = 0;
+  for (let i = 0; i < 40 && sabit < 4; i++) {
+    const n = vscode.window.terminals.length;
+    sabit = n === son ? sabit + 1 : 0;
+    son = n;
+    await bekle(500);
+  }
 }
 
 function deactivate() { if (zamanlayici) clearInterval(zamanlayici); }
 
-module.exports = { activate, deactivate };
+module.exports = { activate, deactivate, _ic: { eslestir, tekillestir, ayniIs, komutuDonustur } };

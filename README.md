@@ -27,17 +27,26 @@ oturuma bağlanır**, diğer konuşmalar kaybolur. Ölçümde tek klasörde üç
 Bunun yerine eklenti her sekmeye **ayrı bir oturum kimliği** iliştirir ve geri yüklerken
 `claude --resume <kimlik>` çalıştırır — tam o konuşma açılır.
 
-Kimlik nasıl bulunuyor:
+Kimlik nasıl bulunuyor (0.5.0'dan beri **kesin**):
 
-1. Komutta zaten `--resume <kimlik>` varsa o kullanılır (en kesin).
-2. Yoksa `~/.claude/projects/<yol>/` altındaki oturum dosyaları izlenir. Eklenti
-   çalışırken **büyüyen** bir dosya, o oturumun kesinlikle açık olduğunu gösterir.
-3. O da yoksa son yazılma zamanına göre sıralanır.
+1. Claude Code her süreç için `~/.claude/sessions/<pid>.json` yazar: o anki oturum kimliği
+   ve `/rename` adı. Eklenti sekmenin kabuğundan aşağı inip Claude sürecini bulur, kimliği
+   buradan okur. Sekme ↔ konuşma eşlemesi artık tahmin değildir.
+2. Dosya yoksa (eski Claude sürümü) komuttaki `--resume <kimlik>`, o da yoksa
+   `~/.claude/projects/<yol>/` altındaki dosyaların yazılma sırası (eski yöntem, yedek).
 
-> **Dürüst sınır:** süreç → oturum eşlemesi dışarıdan kesin okunamıyor (Claude oturum
-> dosyasını açık tutmuyor, kimliği ortam değişkenine koymuyor). Aynı klasördeki N oturum
-> N sekmeye dağıtılır; hangi sekmeye hangisinin düşeceği değişebilir ama **hiçbiri
-> kaybolmaz**.
+Aynı oturum iki sekmede açılmaz: geri yüklemeden önce yinelenen kimlikler ayıklanır.
+
+## Sekme adları ve iç içe (bölünmüş) düzen
+
+- Elle verdiğiniz sekme adı («sivas») aynen geri gelir; Claude'un dönen simgeli canlı
+  başlığı (`◐ …`, `2.1.316`) sekmeye yapıştırılmaz, Claude kendisi yeniden yazar.
+- Komutlar önce VS Code'un **kendi canlandırdığı** sekmelere yazılır; bölünmüş düzen, sıra
+  ve grup ancak böyle korunur. Yeni sekme yalnız eşleşen boş sekme yoksa açılır.
+- Açılışta açılışın sekmeleri canlandırması beklenir (sayı 2 sn değişmeyene dek, en çok 20 sn).
+- ⚠️ **Terminal Keeper** eklentisi `.vscode/sessions.json` içinde `activateOnStartup: true` ve
+  `keepExistingTerminals: false` ile açılışta BÜTÜN terminalleri öldürür; düzen o an gider.
+  Bu eklentiyle birlikte kullanırken ikisini `false` / `true` yapın.
 
 ## Kullanım
 

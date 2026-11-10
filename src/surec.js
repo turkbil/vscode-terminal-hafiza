@@ -29,13 +29,70 @@ async function surecAgaci() {
  * zsh→npm→node diye uzar ama kullanıcının yazdığı satır `npm run dev`'dir.
  * En derindeki `node …` geri yüklemek için kullanışsızdır.
  */
-function onPlanKomutu(agac, kabukPid) {
+function onPlanSureci(agac, kabukPid) {
   const cocuklar = agac.get(kabukPid) || [];
   // Taramanın kendi araçları ve anlık yardımcılar komut sayılmamalı.
   const gecici = /(^|\/)(ps|lsof|which|env|sleep|stty|tput|grep|awk|sed)(\s|$)/;
   const adaylar = cocuklar.filter((c) => !gecici.test(c.komut));
   if (!adaylar.length) return null;
-  return adaylar.sort((a, b) => b.pid - a.pid)[0].komut;
+  return adaylar.sort((a, b) => b.pid - a.pid)[0];
+}
+
+function onPlanKomutu(agac, kabukPid) {
+  const s = onPlanSureci(agac, kabukPid);
+  return s ? s.komut : null;
+}
+
+/**
+ * Bir sekmede çalışan Claude'un KESİN oturumu.
+ *
+ * Claude Code her süreç için `~/.claude/sessions/<pid>.json` yazar: o anki oturum
+ * kimliği (`sessionId`) ve `/rename` adı (`name`, `nameSource: "user"`). Kimliği
+ * dosya saatinden tahmin etmek yerine buradan okuyoruz — tahmin, «sivas» sekmesine
+ * başka bir konuşmayı bağlıyordu. Kabuğun altında en çok 3 kat aşağı inilir
+ * (ör. zsh → claude ya da zsh → sarmalayıcı → claude).
+ */
+function claudeSurecOturumu(agac, kabukPid, kok = path.join(os.homedir(), '.claude', 'sessions')) {
+  let katman = [kabukPid];
+  for (let derinlik = 0; derinlik < 3 && katman.length; derinlik++) {
+    const sonraki = [];
+    for (const p of katman) {
+      for (const c of agac.get(p) || []) {
+        try {
+          const d = JSON.parse(fs.readFileSync(path.join(kok, `${c.pid}.json`), 'utf8'));
+          if (d && d.sessionId) {
+            return { pid: c.pid, kimlik: d.sessionId, ad: d.nameSource === 'user' ? (d.name || null) : null };
+          }
+        } catch { /* bu süreç Claude değil */ }
+        sonraki.push(c.pid);
+      }
+    }
+    katman = sonraki;
+  }
+  return null;
+}
+
+// MARK: - Sekme başlıkları
+
+/** Claude'un canlı başlığının başındaki durum simgesi (✳ ◐ ◑ ⠋ …). */
+const DURUM_SIMGESI = /^[✳◐-◓⠀-⣿✻✶✢·*✻✽]\s*/u;
+
+/** Başlığı karşılaştırılabilir hâle getirir: durum simgesi ve boşluklar atılır. */
+function baslikNormal(ad) {
+  return (ad || '').replace(DURUM_SIMGESI, '').trim();
+}
+
+/**
+ * Başlık programın kendiliğinden koyduğu bir başlık mı (elle verilmiş ad değil mi)?
+ * Elle verilen ad («sivas», «Koordinatör») geri yüklemede sekmeye aynen yazılır;
+ * kendiliğinden başlık yazılmaz, yoksa dönen simge sekmede donup kalır.
+ */
+function otomatikBaslikMi(ad) {
+  const a = (ad || '').trim();
+  if (!a) return true;
+  if (DURUM_SIMGESI.test(a)) return true;
+  if (/^\d+\.\d+\.\d+$/.test(a)) return true;            // Claude sürüm numarası: «2.1.316»
+  return /^(zsh|bash|fish|sh|node|claude|Claude Code)$/i.test(a);
 }
 
 /** Birden çok pid'in çalışma dizinini tek `lsof` çağrısıyla okur. */
@@ -59,8 +116,10 @@ const os = require('os');
 
 /** Bir komut Claude Code oturumu mu? (`claude`, `claude -c`, `claude --resume …`) */
 function claudeMi(komut) {
-  const ilk = (komut || '').trim().split(/\s+/)[0].split('/').pop();
-  return ilk === 'claude';
+  // «cd ~/x && claude --resume …» gibi zincirlerde son parçaya bakılır.
+  const parca = (komut || '').split(/&&|\|\||;/).pop();
+  const ilk = parca.trim().split(/\s+/)[0].split('/').pop();
+  return ilk.toLowerCase() === 'claude';
 }
 
 /** Komutta zaten bir oturum kimliği varsa onu al — en kesin kaynak budur. */
@@ -139,7 +198,10 @@ function claudeOturumlariniEsle(kayitlar, gunluk = () => {}) {
   const klasorler = new Map();
   for (const k of kayitlar) {
     if (!claudeMi(k.komut)) continue;
-    // Komut zaten `--resume <kimlik>` içeriyorsa en kesin bilgi odur.
+    // Oturum dosyasından okunmuş kimlik kesindir; tahmine dokunulmaz.
+    if (k.claudeOturum) continue;
+    // Komutta `--resume <kimlik>` varsa sıradaki en iyi bilgi odur (ama `/clear`
+    // sonrası eskiyebilir; bu yüzden oturum dosyasının ARKASINDA gelir).
     const dogrudan = komuttakiOturumKimligi(k.komut);
     if (dogrudan) { k.claudeOturum = dogrudan; continue; }
     if (!klasorler.has(k.cwd)) klasorler.set(k.cwd, []);
@@ -157,7 +219,8 @@ function claudeOturumlariniEsle(kayitlar, gunluk = () => {}) {
 }
 
 module.exports = {
-  surecAgaci, onPlanKomutu, calismaDizinleri,
+  surecAgaci, onPlanSureci, onPlanKomutu, calismaDizinleri,
+  claudeSurecOturumu, baslikNormal, otomatikBaslikMi,
   claudeMi, komuttakiOturumKimligi, claudeOturumKimlikleri, claudeOturumlariniEsle,
   oturumlariIzle
 };
