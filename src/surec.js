@@ -48,7 +48,7 @@ function onPlanKomutu(agac, kabukPid) {
  *
  * Claude Code her süreç için `~/.claude/sessions/<pid>.json` yazar: o anki oturum
  * kimliği (`sessionId`) ve `/rename` adı (`name`, `nameSource: "user"`). Kimliği
- * dosya saatinden tahmin etmek yerine buradan okuyoruz — tahmin, «sivas» sekmesine
+ * dosya saatinden tahmin etmek yerine buradan okuyoruz — tahmin, «api» sekmesine
  * başka bir konuşmayı bağlıyordu. Kabuğun altında en çok 3 kat aşağı inilir
  * (ör. zsh → claude ya da zsh → sarmalayıcı → claude).
  */
@@ -86,7 +86,7 @@ function baslikNormal(ad) {
 
 /**
  * Başlık programın kendiliğinden koyduğu bir başlık mı (elle verilmiş ad değil mi)?
- * Elle verilen ad («sivas», «Koordinatör») geri yüklemede sekmeye aynen yazılır;
+ * Elle verilen ad («api», «Yönetici») geri yüklemede sekmeye aynen yazılır;
  * kendiliğinden başlık yazılmaz, yoksa dönen simge sekmede donup kalır.
  */
 function otomatikBaslikMi(ad) {

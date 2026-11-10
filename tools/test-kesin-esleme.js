@@ -34,26 +34,26 @@ const dogrula = (b, k, ay = '') => { if (k) { gecti++; console.log(`  ✓ ${b}`)
   dogrula('en az bir canlı süreç sınandı', sinanan > 0, `sinanan=${sinanan}`);
 
   console.log('2) Başlık: elle ad ↔ kendiliğinden başlık');
-  for (const a of ['✳ Koordinatör', '◐ KONATEKS yeni logo', '⠋ çalışıyor', '2.1.316', 'zsh', 'Claude Code', ''])
+  for (const a of ['✳ Yönetici', '◐ Logo güncellemesi', '⠋ çalışıyor', '2.1.316', 'zsh', 'Claude Code', ''])
     dogrula(`kendiliğinden: «${a}»`, S.otomatikBaslikMi(a));
-  for (const a of ['sivas', 'blog üretimi', 'Koordinatör', 'ferhat'])
+  for (const a of ['api', 'veritabanı', 'Yönetici', 'sunucu'])
     dogrula(`elle ad: «${a}»`, !S.otomatikBaslikMi(a));
-  dogrula('simge atılınca aynı başlık', S.baslikNormal('◐ KONATEKS') === S.baslikNormal('◑ KONATEKS'));
-  dogrula('zincirli komut Claude sayılır', S.claudeMi('cd ~/Developer/cms && claude --resume x'));
+  dogrula('simge atılınca aynı başlık', S.baslikNormal('◐ Logo') === S.baslikNormal('◑ Logo'));
+  dogrula('zincirli komut Claude sayılır', S.claudeMi('cd ~/proje && claude --resume x'));
 
   console.log('3) Yerinde geri yükleme: canlanan boş sekmeler eşleniyor, dolu sekmeye dokunulmuyor');
-  const C = '/Users/nurullah/Developer/cms';
+  const C = '/kullanici/proje';
   const t = (name, bos = true, cwd = C) => ({ name, bos, cwd });
-  const sekmeler = [t('sivas'), t('◑ KONATEKS yeni logo'), t('zsh'), t('npm', false), t('Koordinatör')];
+  const sekmeler = [t('api'), t('◑ Logo güncellemesi'), t('zsh'), t('npm', false), t('Yönetici')];
   const kayitlar = [
-    { ad: '◐ KONATEKS yeni logo', adOtomatik: true, cwd: C, komut: 'claude', claudeOturum: 'b' },
-    { ad: 'sivas', adOtomatik: false, cwd: C, komut: 'claude', claudeOturum: 'a' },
+    { ad: '◐ Logo güncellemesi', adOtomatik: true, cwd: C, komut: 'claude', claudeOturum: 'b' },
+    { ad: 'api', adOtomatik: false, cwd: C, komut: 'claude', claudeOturum: 'a' },
     { ad: '✳ Claude Code', adOtomatik: true, cwd: C, komut: 'claude', claudeOturum: 'c' },
-    { ad: 'Koordinatör', adOtomatik: false, cwd: '/baska', komut: 'claude', claudeOturum: 'd' },
+    { ad: 'Yönetici', adOtomatik: false, cwd: '/baska', komut: 'claude', claudeOturum: 'd' },
     { ad: 'npm', adOtomatik: false, cwd: C, komut: 'npm run dev' }
   ];
   const es = E.eslestir(kayitlar, sekmeler, (x) => x.bos, (x) => x.cwd);
-  dogrula('«sivas» kendi sekmesine', es.get(kayitlar[1]) === sekmeler[0]);
+  dogrula('«api» kendi sekmesine', es.get(kayitlar[1]) === sekmeler[0]);
   dogrula('simgesi değişmiş başlık kendi sekmesine', es.get(kayitlar[0]) === sekmeler[1]);
   dogrula('kendiliğinden başlıklı Claude aynı dizindeki boş sekmeye', es.get(kayitlar[2]) === sekmeler[2]);
   dogrula('dizini tutmayan sekmeye yazılmıyor', !es.has(kayitlar[3]));

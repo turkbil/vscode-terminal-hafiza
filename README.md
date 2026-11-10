@@ -39,7 +39,7 @@ Aynı oturum iki sekmede açılmaz: geri yüklemeden önce yinelenen kimlikler a
 
 ## Sekme adları ve iç içe (bölünmüş) düzen
 
-- Elle verdiğiniz sekme adı («sivas») aynen geri gelir; Claude'un dönen simgeli canlı
+- Elle verdiğiniz sekme adı («api») aynen geri gelir; Claude'un dönen simgeli canlı
   başlığı (`◐ …`, `2.1.316`) sekmeye yapıştırılmaz, Claude kendisi yeniden yazar.
 - Komutlar önce VS Code'un **kendi canlandırdığı** sekmelere yazılır; bölünmüş düzen, sıra
   ve grup ancak böyle korunabilir. Yeni sekme yalnız eşleşen boş sekme yoksa açılır.
