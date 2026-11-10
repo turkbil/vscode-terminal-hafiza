@@ -42,7 +42,10 @@ Aynı oturum iki sekmede açılmaz: geri yüklemeden önce yinelenen kimlikler a
 - Elle verdiğiniz sekme adı («sivas») aynen geri gelir; Claude'un dönen simgeli canlı
   başlığı (`◐ …`, `2.1.316`) sekmeye yapıştırılmaz, Claude kendisi yeniden yazar.
 - Komutlar önce VS Code'un **kendi canlandırdığı** sekmelere yazılır; bölünmüş düzen, sıra
-  ve grup ancak böyle korunur. Yeni sekme yalnız eşleşen boş sekme yoksa açılır.
+  ve grup ancak böyle korunabilir. Yeni sekme yalnız eşleşen boş sekme yoksa açılır.
+  (11 Kas 2026: mantık sınandı; tam kapanış sonrası VS Code içinde henüz ölçülmedi.)
+- Bilinen sınır: başlığı kendiliğinden olan bir Claude kaydı, adla eşleşmezse aynı dizindeki
+  boş bir sekmeye yazılır; o sekme önceden başka bir boş kabuk olabilir.
 - Açılışta açılışın sekmeleri canlandırması beklenir (sayı 2 sn değişmeyene dek, en çok 20 sn).
 - ⚠️ **Terminal Keeper** eklentisi `.vscode/sessions.json` içinde `activateOnStartup: true` ve
   `keepExistingTerminals: false` ile açılışta BÜTÜN terminalleri öldürür; düzen o an gider.

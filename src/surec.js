@@ -60,7 +60,9 @@ function claudeSurecOturumu(agac, kabukPid, kok = path.join(os.homedir(), '.clau
       for (const c of agac.get(p) || []) {
         try {
           const d = JSON.parse(fs.readFileSync(path.join(kok, `${c.pid}.json`), 'utf8'));
-          if (d && d.sessionId) {
+          // Yalnız gerçekten Claude olan, etkileşimli süreç: eski bir dosya ya da
+          // arka plandaki başsız bir çocuk Claude olmayan sekmeyi «claude» yapmasın.
+          if (d && d.sessionId && claudeMi(c.komut) && (!d.kind || d.kind === 'interactive')) {
             return { pid: c.pid, kimlik: d.sessionId, ad: d.nameSource === 'user' ? (d.name || null) : null };
           }
         } catch { /* bu süreç Claude değil */ }
